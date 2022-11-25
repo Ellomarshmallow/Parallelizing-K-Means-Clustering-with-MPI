@@ -13,7 +13,7 @@ void save_data_sheet(point *pts, int k, int nptsincluster)
 {
     int i;
     FILE *fptr = fopen("data.csv", "w");
-    fprintf(fptr, "%c,%c,%c\n", "x", "y", "cluster");
+    fprintf(fptr, "%s,%s,%s\n", "x", "y", "cluster");
 
     for (i = 0; i < k * nptsincluster; i++)
     {
@@ -162,17 +162,22 @@ int main(int argc, char **argv)
 
     int nptsincluster = 30;
     const int root = 0;
+    int k = 3;
     int elements_per_proc = ceil((k * nptsincluster) / size);
+    int l;
 
     point *pts;
     point *init_centroids;
     point *current_centroids;
+    point *final_centroids;
+
     point *sub_pts;
 
     current_centroids = calloc(k, sizeof(point));
+    final_centroids = calloc(k, sizeof(point));
     sub_pts = calloc(elements_per_proc, sizeof(point));
 
-    // XXX: This is porbably wrong - figure out what MPI datatype to send in the scatter
+    // XXX: This is porbably wrong - figure out what MPI datatype to use for structs
     MPI_Datatype types[3] = {MPI_DOUBLE, MPI_DOUBLE, MPI_INT};
     MPI_Datatype custom_type;
     MPI_Type_create_struct(blocksCount, blocksLength, offsets, types, &custom_type);
@@ -185,22 +190,23 @@ int main(int argc, char **argv)
         // 0. Generate random 2d data for now
         pts = generate_data(k, nptsincluster);
 
-        // Step 1. Send data (split by n nodes) and inital k centroids to the different nodes from node 0
-        // Scatter data sets
-        MPI_Scatter(pts, elements_per_proc, custom_type, sub_pts, elements_per_proc, custom_type, root, MPI_COMM_WORLD);
+        // 1. Randomly choose k initial centroids
+        init_centroids = initial_centroids(k, nptsincluster, pts);
+        current_centroids = init_centroids;
     }
 
-    // In each node:
+    // Step 2. Send data (split by n nodes) and inital k centroids to the different nodes from node 0
+    // Scatter data sets
+    MPI_Scatter(pts, elements_per_proc, custom_type, sub_pts, elements_per_proc, custom_type, root, MPI_COMM_WORLD);
+    MPI_Bcast(current_centroids, k, custom_type, root, MPI_COMM_WORLD);
 
+    // In each node:
     if (rank != 0)
     {
-        int k = 3;
         int i, l;
         int max_iterations = 1000;
-
-        // 2. Randomly choose k initial centroids XXX: think about if this has to be done before sending the data
-        init_centroids = initial_centroids(k, nptsincluster, sub_pts);
-        current_centroids = init_centroids;
+        point *new_centroids;
+        new_centroids = calloc(k, sizeof(point));
 
         for (i = 0; i <= max_iterations; i++)
         {
@@ -213,27 +219,41 @@ int main(int argc, char **argv)
             }
 
             // 4. Calculate new centroids
-            point *new_centroids;
-            new_centroids = calloc(k, sizeof(point));
             new_centroids = calc_new_centroids(k, elements_per_proc, sub_pts);
 
             // 5. See if centroids have changed. If not, break loop.
             moved = compare_centroids(current_centroids, new_centroids, k);
+
             if (moved == 0)
             {
                 break;
             }
+            else
+            {
+                current_centroids = new_centroids;
+            }
         }
     }
 
-    if (rank == 0)
+    // XXX: Think about adding a barrier?
+
+    if (rank == root)
     {
-        // Combine in initial node:
-        MPI_Gather(const void *sendbuf, MPI_Count sendcount, MPI_Datatype sendtype, void *recvbuf, MPI_Count recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm);
+        // Combine in root node - reduce centroids by summing them and divide by k - XXX: not sure if that is possible at this point already
+        MPI_Reduce(&current_centroids, &final_centroids, k, custom_type, (MPI_SUM / k), root, MPI_COMM_WORLD);
+        MPI_Gather(&sub_pts, elements_per_proc, custom_type, pts, elements_per_proc, custom_type, root, MPI_COMM_WORLD);
 
-        // Step 6. Compute final centroid as average out of all centroids received
+        // Step 6. Assign final centroids to all data
+        for (l = 0; l < k * nptsincluster; l++)
+        {
+            pts[l].cluster = assign_cluster(pts[l], final_centroids, k);
+        }
+    }
 
-        // Step 7. Combine cluster associations
+    if ((rank == root) && 1)
+    {
+        // Store data sheet with cluster assignments
+        save_data_sheet(pts, k, nptsincluster);
     }
 
     MPI_Finalize();
