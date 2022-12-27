@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stddef.h>
 
 typedef struct point
 {
@@ -50,7 +51,7 @@ point *generate_data(int k, int nptsincluster) // XXX: Not ideal data generation
             // printf("%lf %lf\n", pts[n].x, pts[n].y);
         }
     }
-    if (0)
+    if (1)
     {
         save_data_sheet(pts, k, nptsincluster);
     }
@@ -64,7 +65,6 @@ point *initial_centroids(int k, int nptsincluster, point *pts)
     point *init_centroids;
 
     init_centroids = calloc(k, sizeof(point));
-
     // printf("Random initial centroids:\n", r);
 
     for (j = 0; j < k; j++)
@@ -123,6 +123,7 @@ int assign_cluster(point pt, point *current_centroids, int k)
         {
             min_distance = distance;
             cluster_assignment = i;
+            current_centroids[i].cluster = i;
         }
     }
     return cluster_assignment;
@@ -158,29 +159,34 @@ int main(int argc, char **argv)
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    // XXX: Split data structures into for all processes and only root process?
+    // XXX: Split variable declarations into for all processes and only root process?
 
     int nptsincluster = 30;
-    const int root = 0;
     int k = 3;
+    const int root = 0;
     int elements_per_proc = ceil((k * nptsincluster) / size);
-    int l;
+    // int l;
 
     point *pts;
     point *init_centroids;
     point *current_centroids;
-    point *final_centroids;
-
+    // point *final_centroids;
     point *sub_pts;
 
     current_centroids = calloc(k, sizeof(point));
-    final_centroids = calloc(k, sizeof(point));
+    // final_centroids = calloc(k, sizeof(point));
     sub_pts = calloc(elements_per_proc, sizeof(point));
 
-    // XXX: This is porbably wrong - figure out what MPI datatype to use for structs
-    MPI_Datatype types[3] = {MPI_DOUBLE, MPI_DOUBLE, MPI_INT};
+    // Define own MPI Datatype for the struct
+    MPI_Datatype types[] = {MPI_DOUBLE, MPI_DOUBLE, MPI_INT};
     MPI_Datatype custom_type;
-    MPI_Type_create_struct(blocksCount, blocksLength, offsets, types, &custom_type);
+    int array_of_blocklengths[] = {1, 1, 1};
+
+    MPI_Aint array_of_displacements[] = {offsetof(point, x),
+                                         offsetof(point, y),
+                                         offsetof(point, cluster)};
+
+    MPI_Type_create_struct(3, array_of_blocklengths, array_of_displacements, types, &custom_type);
     MPI_Type_commit(&custom_type);
 
     srand(1337);
@@ -196,65 +202,107 @@ int main(int argc, char **argv)
     }
 
     // Step 2. Send data (split by n nodes) and inital k centroids to the different nodes from node 0
-    // Scatter data sets
     MPI_Scatter(pts, elements_per_proc, custom_type, sub_pts, elements_per_proc, custom_type, root, MPI_COMM_WORLD);
+    // XXX: think about the effects elements_per_proc has when it is not evenly distributed
     MPI_Bcast(current_centroids, k, custom_type, root, MPI_COMM_WORLD);
 
-    // In each node:
-    if (rank != 0)
+    // // In each node: --> removed to have process 0 work too XXX: think about if this is correct
+    // if (rank != 0)
+    // {
+    int i, l;
+    int max_iterations = 1000;
+    point *new_centroids;
+    new_centroids = calloc(k, sizeof(point));
+
+    for (i = 0; i <= max_iterations; i++)
     {
-        int i, l;
-        int max_iterations = 1000;
-        point *new_centroids;
-        new_centroids = calloc(k, sizeof(point));
-
-        for (i = 0; i <= max_iterations; i++)
+        int moved = 0;
+        // 3. Find the euclidean distance between all data points in our set with the k centroids.
+        // 3b. Assign cluster based on distance
+        for (l = 0; l < elements_per_proc; l++)
         {
-            int moved = 0;
-            // 3. Find the euclidean distance between all data points in our set with the k centroids.
-            // 3b. Assign cluster based on distance
-            for (l = 0; l < elements_per_proc; l++)
-            {
-                sub_pts[l].cluster = assign_cluster(sub_pts[l], current_centroids, k);
-            }
+            sub_pts[l].cluster = assign_cluster(sub_pts[l], current_centroids, k);
+            // printf("%lf %lf %d\n", sub_pts[l].x, sub_pts[l].y, sub_pts[l].cluster); //making sure the data looks good
+        }
 
-            // 4. Calculate new centroids
-            new_centroids = calc_new_centroids(k, elements_per_proc, sub_pts);
+        // 4. Calculate new centroids
+        new_centroids = calc_new_centroids(k, elements_per_proc, sub_pts);
 
-            // 5. See if centroids have changed. If not, break loop.
-            moved = compare_centroids(current_centroids, new_centroids, k);
+        // 5. See if centroids have changed. If not, break loop.
+        moved = compare_centroids(current_centroids, new_centroids, k);
 
-            if (moved == 0)
-            {
-                break;
+        if (moved == 0)
+        {
+            printf("Final centroids from rank %d:\n", rank);
+            int i;
+            for (i = 0; i < k; i++){
+                printf("%lf %lf %d\n", current_centroids[i].x, current_centroids[i].y, current_centroids[i].cluster); //XXX: Seems like one centroid is incorrect? (0.0 0.0)
             }
-            else
-            {
-                current_centroids = new_centroids;
-            }
+            break;
+        }
+        else
+        {
+            current_centroids = new_centroids;
         }
     }
+    // }
 
     // XXX: Think about adding a barrier?
 
+    // Define MPI operator - bork - not used in favor of trying MPI_Gather over MPI_Reduce
+    // void my_sum_function(void *inputBuffer, void *outputBuffer, int *len, MPI_Datatype *datatype)
+    // {
+    //     point *input = (point *)inputBuffer;
+    //     point *output = (point *)outputBuffer;
+    //     int i;
+    //     for (i = 0; i < *len; i++)
+    //     {
+    //         // FIXME: Seems wrong
+    //         output[i].x += input[i].x;
+    //         output[i].y += input[i].y;
+    //     }
+    // }
+    // // Create the operation handle
+    // MPI_Op operation;
+    // MPI_Op_create(&my_sum_function, 1, &operation);
+
+    // Combine in root node - reduce centroids by summing them and divide by size
+    // MPI_Reduce(&current_centroids, current_centroids, k, custom_type, operation, root, MPI_COMM_WORLD); // XXX: Sum not possible because it's an array
+    // think about changing to gather for centroids?
+
+    MPI_Gather(&current_centroids, k, custom_type, current_centroids, k, custom_type, root, MPI_COMM_WORLD); //FIXME: THIS IS THE PROBLEM!!
+
     if (rank == root)
     {
-        // Combine in root node - reduce centroids by summing them and divide by k - XXX: not sure if that is possible at this point already
-        MPI_Reduce(&current_centroids, &final_centroids, k, custom_type, (MPI_SUM / k), root, MPI_COMM_WORLD);
-        MPI_Gather(&sub_pts, elements_per_proc, custom_type, pts, elements_per_proc, custom_type, root, MPI_COMM_WORLD);
-
-        // Step 6. Assign final centroids to all data
-        for (l = 0; l < k * nptsincluster; l++)
-        {
-            pts[l].cluster = assign_cluster(pts[l], final_centroids, k);
+        printf("Received centroids in rank %d:\n", rank);
+        int i;
+        for (i = 0; i < k*size; i++){
+            printf("%lf %lf %d\n", current_centroids[i].x, current_centroids[i].y, current_centroids[i].cluster); // making sure the received centroids look good
         }
+
+        // Step 6 calc final centroids as average of all received ones TODO: this is wrong
+        // int i;
+        // for (i = 0; i < k; i++)
+        // {
+        //     final_centroids[i].x = final_centroids[i].x / size;
+        //     final_centroids[i].y = final_centroids[i].y / size;
+        // }
+
+        // Step 7. Assign final clusters to all points
+        // for (l = 0; l < k * nptsincluster; l++)
+        // {
+        //     pts[l].cluster = assign_cluster(pts[l], final_centroids, k);
+        // }
     }
 
     if ((rank == root) && 1)
-    {
+    {   
         // Store data sheet with cluster assignments
         save_data_sheet(pts, k, nptsincluster);
     }
+
+    // Free the operation handle created
+    //  MPI_Op_free(&operation);
 
     MPI_Finalize();
     return 0;
