@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stddef.h>
+#include <unistd.h>
 
 typedef struct point
 {
@@ -149,6 +150,15 @@ int compare_centroids(point *current_centroids, point *new_centroid, int k)
 
 int main(int argc, char **argv)
 {
+
+    // For debugging
+    // {
+    //     int i=0;
+    //     while(0==i){
+    //         sleep(5);
+    //     }
+    // }
+
     MPI_Init(&argc, &argv);
 
     // Get the number of processes
@@ -170,11 +180,11 @@ int main(int argc, char **argv)
     point *pts;
     point *init_centroids;
     point *current_centroids;
-    // point *final_centroids;
+    point *final_centroids;
     point *sub_pts;
 
     current_centroids = calloc(k, sizeof(point));
-    // final_centroids = calloc(k, sizeof(point));
+    final_centroids = calloc(k*size, sizeof(point));
     sub_pts = calloc(elements_per_proc, sizeof(point));
 
     // Define own MPI Datatype for the struct
@@ -219,7 +229,7 @@ int main(int argc, char **argv)
         int moved = 0;
         // 3. Find the euclidean distance between all data points in our set with the k centroids.
         // 3b. Assign cluster based on distance
-        for (l = 0; l < elements_per_proc; l++)
+        for (l = 0; l < elements_per_proc; l++) //XXX: this might lead to one centroid being 0 because in non even elements_per_proc distributions? 
         {
             sub_pts[l].cluster = assign_cluster(sub_pts[l], current_centroids, k);
             // printf("%lf %lf %d\n", sub_pts[l].x, sub_pts[l].y, sub_pts[l].cluster); //making sure the data looks good
@@ -270,14 +280,16 @@ int main(int argc, char **argv)
     // MPI_Reduce(&current_centroids, current_centroids, k, custom_type, operation, root, MPI_COMM_WORLD); // XXX: Sum not possible because it's an array
     // think about changing to gather for centroids?
 
-    MPI_Gather(&current_centroids, k, custom_type, current_centroids, k, custom_type, root, MPI_COMM_WORLD); //FIXME: THIS IS THE PROBLEM!!
+    MPI_Gather(&current_centroids, k, custom_type, final_centroids, k, custom_type, root, MPI_COMM_WORLD); //FIXME: THIS IS THE PROBLEM!!
+
+     // XXX: Think about adding a barrier?
 
     if (rank == root)
     {
         printf("Received centroids in rank %d:\n", rank);
         int i;
         for (i = 0; i < k*size; i++){
-            printf("%lf %lf %d\n", current_centroids[i].x, current_centroids[i].y, current_centroids[i].cluster); // making sure the received centroids look good
+            printf("%lf %lf %d\n", final_centroids[i].x, final_centroids[i].y, final_centroids[i].cluster); // making sure the received centroids look good
         }
 
         // Step 6 calc final centroids as average of all received ones TODO: this is wrong
