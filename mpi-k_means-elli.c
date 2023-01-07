@@ -243,7 +243,7 @@ int main(int argc, char **argv)
 
         if (moved == 0)
         {
-            printf("Final centroids from rank %d:\n", rank);
+            // printf("Final centroids from rank %d:\n", rank);
             // int i;
             // for (i = 0; i < k; i++)
             // {
@@ -265,26 +265,43 @@ int main(int argc, char **argv)
 
     if (rank == root)
     {
-        printf("Received centroids in rank %d:\n", rank);
-        int i;
-        for (i = 0; i < k * size; i++)
-        {
-            printf("%lf %lf %d\n", final_centroids[i].x, final_centroids[i].y, final_centroids[i].cluster); // making sure the received centroids look good
-        }
+        // printf("Received centroids in rank %d:\n", rank);
+        // int i;
+        // for (i = 0; i < k * size; i++)
+        // {
+        //     printf("%lf %lf %d\n", final_centroids[i].x, final_centroids[i].y, final_centroids[i].cluster); // making sure the received centroids look good
+        // }
 
         // Step 6 calc final centroids as average of all received ones TODO: this is wrong
-        // int i;
-        // for (i = 0; i < k; i++)
+        int i;
+        for (i = 0; i < k; i++)
+        {
+            int x = 0;
+            int y = 0;
+            int j;
+            for (j = 0; j < k * size; j++)
+            {
+                if (final_centroids[i].cluster == i)
+                {
+                    x += final_centroids[j].x;
+                    y += final_centroids[j].y;
+                }
+            }
+            final_centroids[i].x = x / size;
+            final_centroids[i].y = y / size;
+        }
+
+        // int q;
+        // for (q = 0; q < k; q++)
         // {
-        //     final_centroids[i].x = final_centroids[i].x / size;
-        //     final_centroids[i].y = final_centroids[i].y / size;
+        //     printf("%lf %lf %d\n", final_centroids[q].x, final_centroids[q].y, final_centroids[q].cluster); // making sure the received centroids look good
         // }
 
         // Step 7. Assign final clusters to all points
-        // for (l = 0; l < k * nptsincluster; l++)
-        // {
-        //     pts[l].cluster = assign_cluster(pts[l], final_centroids, k);
-        // }
+        for (l = 0; l < k * nptsincluster; l++)
+        {
+            pts[l].cluster = assign_cluster(pts[l], final_centroids, k);
+        }
     }
 
     if ((rank == root) && 1)
@@ -293,8 +310,7 @@ int main(int argc, char **argv)
         save_data_sheet(pts, k, nptsincluster);
     }
 
-    // Free the operation handle created
-    //  MPI_Op_free(&operation);
+    // Free memory?
 
     MPI_Finalize();
     return 0;
