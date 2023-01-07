@@ -184,7 +184,7 @@ int main(int argc, char **argv)
     point *sub_pts;
 
     current_centroids = calloc(k, sizeof(point));
-    final_centroids = calloc(k*size, sizeof(point));
+    final_centroids = calloc(k * size, sizeof(point));
     sub_pts = calloc(elements_per_proc, sizeof(point));
 
     // Define own MPI Datatype for the struct
@@ -229,7 +229,7 @@ int main(int argc, char **argv)
         int moved = 0;
         // 3. Find the euclidean distance between all data points in our set with the k centroids.
         // 3b. Assign cluster based on distance
-        for (l = 0; l < elements_per_proc; l++) //XXX: this might lead to one centroid being 0 because in non even elements_per_proc distributions? 
+        for (l = 0; l < elements_per_proc; l++) // XXX: this might lead to one centroid being 0 because in non even elements_per_proc distributions?
         {
             sub_pts[l].cluster = assign_cluster(sub_pts[l], current_centroids, k);
             // printf("%lf %lf %d\n", sub_pts[l].x, sub_pts[l].y, sub_pts[l].cluster); //making sure the data looks good
@@ -244,10 +244,11 @@ int main(int argc, char **argv)
         if (moved == 0)
         {
             printf("Final centroids from rank %d:\n", rank);
-            int i;
-            for (i = 0; i < k; i++){
-                printf("%lf %lf %d\n", current_centroids[i].x, current_centroids[i].y, current_centroids[i].cluster); //XXX: Seems like one centroid is incorrect? (0.0 0.0)
-            }
+            // int i;
+            // for (i = 0; i < k; i++)
+            // {
+            //     printf("%lf %lf %d\n", current_centroids[i].x, current_centroids[i].y, current_centroids[i].cluster); // XXX: Seems like one centroid is incorrect? (0.0 0.0)
+            // }
             break;
         }
         else
@@ -259,36 +260,15 @@ int main(int argc, char **argv)
 
     // XXX: Think about adding a barrier?
 
-    // Define MPI operator - bork - not used in favor of trying MPI_Gather over MPI_Reduce
-    // void my_sum_function(void *inputBuffer, void *outputBuffer, int *len, MPI_Datatype *datatype)
-    // {
-    //     point *input = (point *)inputBuffer;
-    //     point *output = (point *)outputBuffer;
-    //     int i;
-    //     for (i = 0; i < *len; i++)
-    //     {
-    //         // FIXME: Seems wrong
-    //         output[i].x += input[i].x;
-    //         output[i].y += input[i].y;
-    //     }
-    // }
-    // // Create the operation handle
-    // MPI_Op operation;
-    // MPI_Op_create(&my_sum_function, 1, &operation);
-
-    // Combine in root node - reduce centroids by summing them and divide by size
-    // MPI_Reduce(&current_centroids, current_centroids, k, custom_type, operation, root, MPI_COMM_WORLD); // XXX: Sum not possible because it's an array
-    // think about changing to gather for centroids?
-
-    MPI_Gather(&current_centroids, k, custom_type, final_centroids, k, custom_type, root, MPI_COMM_WORLD); //FIXME: THIS IS THE PROBLEM!!
-
-     // XXX: Think about adding a barrier?
+    MPI_Gather(current_centroids, k, custom_type, final_centroids, k, custom_type, root, MPI_COMM_WORLD);
+    // XXX: Think about adding a barrier?
 
     if (rank == root)
     {
         printf("Received centroids in rank %d:\n", rank);
         int i;
-        for (i = 0; i < k*size; i++){
+        for (i = 0; i < k * size; i++)
+        {
             printf("%lf %lf %d\n", final_centroids[i].x, final_centroids[i].y, final_centroids[i].cluster); // making sure the received centroids look good
         }
 
@@ -308,7 +288,7 @@ int main(int argc, char **argv)
     }
 
     if ((rank == root) && 1)
-    {   
+    {
         // Store data sheet with cluster assignments
         save_data_sheet(pts, k, nptsincluster);
     }
