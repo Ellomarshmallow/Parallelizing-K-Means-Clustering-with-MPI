@@ -175,7 +175,7 @@ int main(int argc, char **argv)
     int k = 3;
     const int root = 0;
     int elements_per_proc = ceil((k * nptsincluster) / size);
-    // int l;
+    double start_time, stop_time, elapsed_time;
 
     point *pts;
     point *init_centroids;
@@ -205,6 +205,9 @@ int main(int argc, char **argv)
     {
         // 0. Generate random 2d data for now
         pts = generate_data(k, nptsincluster);
+
+        // Benchmark with data in memory already
+        start_time = MPI_Wtime();
 
         // 1. Randomly choose k initial centroids
         init_centroids = initial_centroids(k, nptsincluster, pts);
@@ -303,11 +306,20 @@ int main(int argc, char **argv)
             pts[l].cluster = assign_cluster(pts[l], final_centroids, k);
         }
     }
+    // Think about adding barrier?
+
+    long int num_B = k * nptsincluster * sizeof(point); // data size XXX: but not in bytes??
+    long int B_in_GB = 1 << 30;
+    double num_GB = (double)num_B / (double)B_in_GB;
 
     if ((rank == root) && 1)
     {
+        stop_time = MPI_Wtime();
+        elapsed_time = stop_time - start_time;
+
         // Store data sheet with cluster assignments
         save_data_sheet(pts, k, nptsincluster);
+        printf("Transfer size (B): %10li, Transfer Time (s): %15.9f, Bandwidth (GB/s): %15.9f\n", num_B, elapsed_time, num_GB / elapsed_time);
     }
 
     // Free memory?
