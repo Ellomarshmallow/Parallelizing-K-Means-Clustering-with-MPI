@@ -151,14 +151,6 @@ int compare_centroids(point *current_centroids, point *new_centroid, int k)
 int main(int argc, char **argv)
 {
 
-    // For debugging
-    // {
-    //     int i=0;
-    //     while(0==i){
-    //         sleep(5);
-    //     }
-    // }
-
     MPI_Init(&argc, &argv);
 
     // Get the number of processes
@@ -175,7 +167,7 @@ int main(int argc, char **argv)
     int k = 3;
     const int root = 0;
     int elements_per_proc = ceil((k * nptsincluster) / size);
-    double start_time, stop_time, elapsed_time;
+    double start_time, start_time_wdata, stop_time, elapsed_time, elapsed_time_wdata;
 
     point *pts;
     point *init_centroids;
@@ -203,6 +195,9 @@ int main(int argc, char **argv)
 
     if (rank == 0) // Data needs to sit on root process to be scattered later on
     {
+        // Benchmark with I/O / data generation
+        start_time_wdata = MPI_Wtime();
+
         // 0. Generate random 2d data for now
         pts = generate_data(k, nptsincluster);
 
@@ -306,7 +301,7 @@ int main(int argc, char **argv)
             pts[l].cluster = assign_cluster(pts[l], final_centroids, k);
         }
     }
-    // Think about adding barrier?
+    // Think about adding barrier? for benchmarking?
 
     long int num_B = k * nptsincluster * sizeof(point); // data size XXX: but not in bytes??
     long int B_in_GB = 1 << 30;
@@ -316,10 +311,12 @@ int main(int argc, char **argv)
     {
         stop_time = MPI_Wtime();
         elapsed_time = stop_time - start_time;
+        elapsed_time_wdata = stop_time - start_time_wdata;
 
         // Store data sheet with cluster assignments
         save_data_sheet(pts, k, nptsincluster);
         printf("Transfer size (B): %10li, Transfer Time (s): %15.9f, Bandwidth (GB/s): %15.9f\n", num_B, elapsed_time, num_GB / elapsed_time);
+        printf("Num. Processes: %d, Data size (B): %10li, Run Time with data (s): %15.9f, Bandwidth with data  (GB/s): %15.9f\n", size, num_B, elapsed_time_wdata, elapsed_time_wdata / elapsed_time);
     }
 
     // Free memory?
