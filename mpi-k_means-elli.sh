@@ -8,4 +8,4 @@
 #PBS -q short_cpuQ
 
 module load mpich-3.2
-mpirun.actual -n 4 ./hpc4ds-project/mpi-k_means-elli
+mpirun.actual -n 2 ./hpc4ds-project/mpi-k_means-elli

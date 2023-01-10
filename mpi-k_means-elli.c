@@ -167,7 +167,7 @@ int main(int argc, char **argv)
     int k = 3;
     const int root = 0;
     int elements_per_proc = ceil((k * nptsincluster) / size);
-    double start_time, start_time_wdata, stop_time, elapsed_time, elapsed_time_wdata;
+    double start_time, stop_time, elapsed_time;
 
     point *pts;
     point *init_centroids;
@@ -195,11 +195,9 @@ int main(int argc, char **argv)
 
     if (rank == 0) // Data needs to sit on root process to be scattered later on
     {
-        // Benchmark with I/O / data generation
-        start_time_wdata = MPI_Wtime();
 
         // 0. Generate random 2d data for now
-        pts = generate_data(k, nptsincluster);
+        pts = generate_data(k, nptsincluster); // XXX: think about writing + ready to file to benchmark with I/O if wanted
 
         // Benchmark with data in memory already
         start_time = MPI_Wtime();
@@ -303,24 +301,23 @@ int main(int argc, char **argv)
     }
     // Think about adding barrier? for benchmarking?
 
-    long int num_B = k * nptsincluster * sizeof(point); // data size XXX: but not in bytes??
-    long int B_in_GB = 1 << 30;
-    double num_GB = (double)num_B / (double)B_in_GB;
+    long int num_B = k * nptsincluster * sizeof(point);
+    // char[] what = argv[1];
 
     if ((rank == root) && 1)
     {
         stop_time = MPI_Wtime();
         elapsed_time = stop_time - start_time;
-        elapsed_time_wdata = stop_time - start_time_wdata;
 
         // Store data sheet with cluster assignments
         save_data_sheet(pts, k, nptsincluster);
-        printf("Transfer size (B): %10li, Transfer Time (s): %15.9f, Bandwidth (GB/s): %15.9f\n", num_B, elapsed_time, num_GB / elapsed_time);
-        printf("Num. Processes: %d, Data size (B): %10li, Run Time with data (s): %15.9f, Bandwidth with data  (GB/s): %15.9f\n", size, num_B, elapsed_time_wdata, elapsed_time_wdata / elapsed_time);
+        printf("Num. Processes: %d, Data size (B): %10li, Run Time (s): %15.9f\n", size, num_B, elapsed_time);
+        //printf("Nnodes: %s\n", argv[1]);
     }
 
     // Free memory?
 
     MPI_Finalize();
+
     return 0;
 }
