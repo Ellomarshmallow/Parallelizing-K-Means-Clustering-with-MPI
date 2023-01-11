@@ -130,19 +130,19 @@ int assign_cluster(point pt, point *current_centroids, int k)
     return cluster_assignment;
 }
 
-int compare_centroids(point *current_centroids, point *new_centroid, int k)
+double compare_centroids(point *current_centroids, point *new_centroid, int k)
 {
-    int diff = 0;
+    double diff = 0;
     int i;
 
     for (i = 0; i < k; i++)
     {
         diff = current_centroids[i].x - new_centroid[i].x;
-        if (diff != 0)
+        if (diff != 0.0)
             return diff;
 
         diff = current_centroids[i].y - new_centroid[i].y;
-        if (diff != 0)
+        if (diff != 0.0)
             return diff;
     }
     return diff;
@@ -222,7 +222,7 @@ int main(int argc, char **argv)
 
     for (i = 0; i <= max_iterations; i++)
     {
-        int moved = 0;
+        double moved = 0.0;
         // 3. Find the euclidean distance between all data points in our set with the k centroids.
         // 3b. Assign cluster based on distance
         for (l = 0; l < elements_per_proc; l++) // XXX: this might lead to one centroid being 0 because in non even elements_per_proc distributions?
@@ -237,7 +237,7 @@ int main(int argc, char **argv)
         // 5. See if centroids have changed. If not, break loop.
         moved = compare_centroids(current_centroids, new_centroids, k);
 
-        if (moved == 0)
+        if (moved == 0.0)
         {
             // printf("Final centroids from rank %d:\n", rank);
             // int i;
