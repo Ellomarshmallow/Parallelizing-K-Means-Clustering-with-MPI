@@ -4,33 +4,30 @@ import os
 import fnmatch
 
 mnt = "/home/eleonora.renz/hpc4ds-project/benchmarking/"
-experiment = ["light/", "heavy/", "cpu-increase"] #TODO: automate for all
-experiment = "light/"
+experiments = ["light/", "heavy/", "cpu-increase"]
 
-df = []
+for experiment in experiments:
 
-for filename in os.listdir(mnt+experiment):
-    f = os.path.join(mnt+experiment, filename)
-    if fnmatch.fnmatch(filename, '*sh.o*'):
-      df_part = pd.read_csv(f, sep=',', names=['nnodes', 'ncpus', 'nproc', 'bytes', 'time'])
-      df.append(df_part)
+  df = []
 
-df = pd.concat(df, sort=False)
+  for filename in os.listdir(mnt+experiment):
+      f = os.path.join(mnt+experiment, filename)
+      if fnmatch.fnmatch(filename, '*sh.o*'):
+        df_part = pd.read_csv(f, sep=',', names=['nnodes', 'ncpus', 'nproc', 'bytes', 'time'])
+        df.append(df_part)
 
-# Average over several runs
-grouped_df = df.groupby(['nnodes', 'ncpus', 'nproc'])
-df = grouped_df[['time']].mean()
-df.reset_index(inplace = True)
+  df = pd.concat(df, sort=False)
 
-########
-# Plot #
-########
+  grouped_df = df.groupby(['nnodes', 'ncpus', 'nproc'])
+  df = grouped_df[['time']].mean()
+  df.reset_index(inplace = True)
 
-xlabels = ['1', '2', '4', '8', '16', '32', '64', '128']
-plt.title(experiment.replace('/', ''))
-suptitle = "nodes:" + str(df.nnodes.unique()) + ", cpus:" + str(df.ncpus.unique())
-plt.suptitle(suptitle, y=0.05)
-plt.plot(df.nproc, df.time)
-plt.xticks(df.nproc, xlabels)
-plt.savefig(mnt+'plots/'+experiment.replace('/', ''))
-plt.show()
+  # plot
+  xlabels = ['1', '2', '4', '8', '16', '32', '64', '128']
+  plt.title(experiment.replace('/', ''))
+  suptitle = "nodes:" + str(df.nnodes.unique()) + ", cpus:" + str(df.ncpus.unique())
+  plt.suptitle(suptitle, y=0.05)
+  plt.plot(df.nproc, df.time)
+  plt.xticks(df.nproc, xlabels)
+  plt.savefig(mnt+'plots/'+experiment.replace('/', ''))
+  plt.show()
