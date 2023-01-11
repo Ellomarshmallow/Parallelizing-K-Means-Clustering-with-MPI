@@ -120,7 +120,7 @@ int assign_cluster(point pt, point *current_centroids, int k)
     for (i = 0; i < k; i++)
     {
         distance = sqrt(pow(pt.x - current_centroids[i].x, 2) + pow(pt.y - current_centroids[i].y, 2));
-        if (distance < min_distance) //XXX: what if there is equal distance between two different centroids?
+        if (distance < min_distance) // XXX: what if there is equal distance between two different centroids?
         {
             min_distance = distance;
             cluster_assignment = i;
@@ -129,19 +129,19 @@ int assign_cluster(point pt, point *current_centroids, int k)
     return cluster_assignment;
 }
 
-int compare_centroids(point *current_centroids, point *new_centroid, int k)
+double compare_centroids(point *current_centroids, point *new_centroid, int k)
 {
-    int diff = 0;
+    double diff = 0;
     int i;
 
     for (i = 0; i < k; i++)
     {
         diff = current_centroids[i].x - new_centroid[i].x;
-        if (diff != 0)
+        if (diff != 0.0)
             return diff;
 
         diff = current_centroids[i].y - new_centroid[i].y;
-        if (diff != 0)
+        if (diff != 0.0)
             return diff;
     }
     return diff;
@@ -172,7 +172,7 @@ int main(void)
 
     for (i = 0; i <= max_iterations; i++)
     {
-        int moved = 0;
+        double moved = 0;
         // 2. Find the euclidean distance between all data points in our set with the k centroids.
         // 3. Assign cluster based on distance
         for (l = 0; l < k * nptsincluster; l++)
@@ -187,9 +187,13 @@ int main(void)
 
         // 5. See if centroids have changed. If not, break loop.
         moved = compare_centroids(current_centroids, new_centroids, k);
-        if (moved == 0)
+        if (moved == 0.0)
         {
             break;
+        }
+        else
+        {
+            current_centroids = new_centroids;
         }
     }
 
