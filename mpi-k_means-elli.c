@@ -128,7 +128,7 @@ int assign_cluster(point pt, point *current_centroids, int k)
 
 double compare_centroids(point *current_centroids, point *new_centroid, int k)
 {
-    double diff = 0.0;
+    double diff = 0;
     int i;
 
     for (i = 0; i < k; i++)
@@ -159,11 +159,11 @@ int main(int argc, char **argv)
 
     // XXX: Split variable declarations into for all processes and only root process?
 
-    char* nnodes = argv[1];
-    char* ncpus = argv[2];
+    char *nnodes = argv[1];
+    char *ncpus = argv[2];
     // char* dataset_size = argv[1]; FIXME - needs to be added again in bash script
     // int nptsincluster = (int)(uintptr_t)dataset_size; // currently will be multiplied by k
-    int nptsincluster = 30;
+    int nptsincluster = 300;
     int k = 3;
     const int root = 0;
     int elements_per_proc = ceil((k * nptsincluster) / size);
@@ -209,13 +209,13 @@ int main(int argc, char **argv)
     MPI_Bcast(current_centroids, k, custom_type, root, MPI_COMM_WORLD);
 
     int i, l;
+    double moved = 0.0;
     int max_iterations = 1000;
     point *new_centroids;
     new_centroids = calloc(k, sizeof(point));
 
     for (i = 0; i <= max_iterations; i++)
     {
-        double moved = 0.0;
         // 3. Find the euclidean distance between all data points in our set with the k centroids.
         // 3b. Assign cluster based on distance
         for (l = 0; l < elements_per_proc; l++)
@@ -233,16 +233,20 @@ int main(int argc, char **argv)
 
             // 6. See if centroids have changed. If not, break loop.
             moved = compare_centroids(current_centroids, new_centroids, k);
-
-            if (moved == 0.0)
-            {
-                break;
-            }
-            else
-            {
-                current_centroids = new_centroids;
-            }
         }
+
+        MPI_Bcast(&moved, 1, MPI_DOUBLE, root, MPI_COMM_WORLD); // All processes have to break the loop
+
+        if (moved == 0.0)
+        {
+            break;
+        }
+        else
+        {
+            current_centroids = new_centroids;
+        }
+
+        MPI_Bcast(current_centroids, k, custom_type, root, MPI_COMM_WORLD);
     }
 
     long int num_B = k * nptsincluster * sizeof(point);
@@ -257,7 +261,9 @@ int main(int argc, char **argv)
         printf("%s,%s,%d,%li,%f\n", nnodes, ncpus, size, num_B, elapsed_time);
     }
 
-    // Free memory?
+    free(new_centroids);
+    free(init_centroids);
+    free(sub_pts);
 
     MPI_Finalize();
 
