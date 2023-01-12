@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stddef.h>
 #include <unistd.h>
+#include <stdint.h>
 
 typedef struct point
 {
@@ -158,6 +159,10 @@ int main(int argc, char **argv)
 
     // XXX: Split variable declarations into for all processes and only root process?
 
+    char* nnodes = argv[1];
+    char* ncpus = argv[2];
+    // char* dataset_size = argv[1]; FIXME - needs to be added again in bash script
+    // int nptsincluster = (int)(uintptr_t)dataset_size; // currently will be multiplied by k
     int nptsincluster = 30;
     int k = 3;
     const int root = 0;
@@ -249,7 +254,7 @@ int main(int argc, char **argv)
 
         // Store data sheet with cluster assignments
         save_data_sheet(pts, k, nptsincluster);
-        printf("Num. Processes: %d, Data size (B): %10li, Run Time (s): %15.9f\n", size, num_B, elapsed_time);
+        printf("%s,%s,%d,%li,%f\n", nnodes, ncpus, size, num_B, elapsed_time);
     }
 
     // Free memory?
