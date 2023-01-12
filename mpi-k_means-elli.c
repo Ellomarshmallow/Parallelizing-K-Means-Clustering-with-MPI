@@ -24,7 +24,7 @@ void save_data_sheet(point *pts, int k, int nptsincluster)
     fclose(fptr);
 }
 
-point *generate_data(int k, int nptsincluster) // XXX: Not ideal data generation for clustering
+point *generate_data(int k, int nptsincluster)
 {
     int i;
     int j;
@@ -48,11 +48,9 @@ point *generate_data(int k, int nptsincluster) // XXX: Not ideal data generation
 
             pts[n].x = z1;
             pts[n].y = z2;
-
-            // printf("%lf %lf\n", pts[n].x, pts[n].y);
         }
     }
-    if (1)
+    if (0)
     {
         save_data_sheet(pts, k, nptsincluster);
     }
@@ -66,14 +64,11 @@ point *initial_centroids(int k, int nptsincluster, point *pts)
     point *init_centroids;
 
     init_centroids = calloc(k, sizeof(point));
-    // printf("Random initial centroids:\n", r);
 
     for (j = 0; j < k; j++)
     {
         r = rand() % (k * nptsincluster); // XXX: Doesn't ensure exclusivity when generating the numbers
         init_centroids[j] = pts[r];
-        // printf("Random Num %d\n", r);
-        // printf("Init centroid[%d]\t%g\t%g\n", j, init_centroids[j].x, init_centroids[j].y);
     }
     return init_centroids;
 }
@@ -132,7 +127,7 @@ int assign_cluster(point pt, point *current_centroids, int k)
 
 double compare_centroids(point *current_centroids, point *new_centroid, int k)
 {
-    double diff = 0;
+    double diff = 0.0;
     int i;
 
     for (i = 0; i < k; i++)
@@ -153,11 +148,11 @@ int main(int argc, char **argv)
 
     MPI_Init(&argc, &argv);
 
-    // Get the number of processes
+    // Number of processes
     int size;
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    // Get the rank of the process
+    // Rank of the process
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -172,11 +167,9 @@ int main(int argc, char **argv)
     point *pts;
     point *init_centroids;
     point *current_centroids;
-    point *final_centroids;
     point *sub_pts;
 
     current_centroids = calloc(k, sizeof(point));
-    final_centroids = calloc(k * size, sizeof(point));
     sub_pts = calloc(elements_per_proc, sizeof(point));
 
     // Define own MPI Datatype for the struct
@@ -195,7 +188,6 @@ int main(int argc, char **argv)
 
     if (rank == 0) // Data needs to sit on root process to be scattered later on
     {
-
         // 0. Generate random 2d data for now
         pts = generate_data(k, nptsincluster); // XXX: think about writing + ready to file to benchmark with I/O if wanted
 
@@ -209,12 +201,8 @@ int main(int argc, char **argv)
 
     // Step 2. Send data (split by n nodes) and inital k centroids to the different nodes from node 0
     MPI_Scatter(pts, elements_per_proc, custom_type, sub_pts, elements_per_proc, custom_type, root, MPI_COMM_WORLD);
-    // XXX: think about the effects elements_per_proc has when it is not evenly distributed
     MPI_Bcast(current_centroids, k, custom_type, root, MPI_COMM_WORLD);
 
-    // // In each node: --> removed to have process 0 work too XXX: think about if this is correct
-    // if (rank != 0)
-    // {
     int i, l;
     int max_iterations = 1000;
     point *new_centroids;
@@ -225,84 +213,34 @@ int main(int argc, char **argv)
         double moved = 0.0;
         // 3. Find the euclidean distance between all data points in our set with the k centroids.
         // 3b. Assign cluster based on distance
-        for (l = 0; l < elements_per_proc; l++) // XXX: this might lead to one centroid being 0 because in non even elements_per_proc distributions?
+        for (l = 0; l < elements_per_proc; l++)
         {
             sub_pts[l].cluster = assign_cluster(sub_pts[l], current_centroids, k);
-            // printf("%lf %lf %d\n", sub_pts[l].x, sub_pts[l].y, sub_pts[l].cluster); //making sure the data looks good
         }
 
-        // 4. Calculate new centroids
-        new_centroids = calc_new_centroids(k, elements_per_proc, sub_pts);
+        // 4. Gather all points with their cluster associations
+        MPI_Gather(sub_pts, elements_per_proc, custom_type, pts, elements_per_proc, custom_type, root, MPI_COMM_WORLD);
 
-        // 5. See if centroids have changed. If not, break loop.
-        moved = compare_centroids(current_centroids, new_centroids, k);
-
-        if (moved == 0.0)
+        if (rank == root)
         {
-            // printf("Final centroids from rank %d:\n", rank);
-            // int i;
-            // for (i = 0; i < k; i++)
-            // {
-            //     printf("%lf %lf %d\n", current_centroids[i].x, current_centroids[i].y, current_centroids[i].cluster); // XXX: Seems like one centroid is incorrect? (0.0 0.0)
-            // }
-            break;
-        }
-        else
-        {
-            current_centroids = new_centroids;
-        }
-    }
-    // }
+            // 5. Calculate new centroids
+            new_centroids = calc_new_centroids(k, nptsincluster, pts);
 
-    // XXX: Think about adding a barrier?
+            // 6. See if centroids have changed. If not, break loop.
+            moved = compare_centroids(current_centroids, new_centroids, k);
 
-    MPI_Gather(current_centroids, k, custom_type, final_centroids, k, custom_type, root, MPI_COMM_WORLD);
-    // XXX: Think about adding a barrier?
-
-    if (rank == root)
-    {
-        // printf("Received centroids in rank %d:\n", rank);
-        // int i;
-        // for (i = 0; i < k * size; i++)
-        // {
-        //     printf("%lf %lf %d\n", final_centroids[i].x, final_centroids[i].y, final_centroids[i].cluster); // making sure the received centroids look good
-        // }
-
-        // Step 6 calc final centroids as average of all received ones TODO: this is wrong
-        int i;
-        for (i = 0; i < k; i++)
-        {
-            int x = 0;
-            int y = 0;
-            int j;
-            for (j = 0; j < k * size; j++)
+            if (moved == 0.0)
             {
-                if (final_centroids[i].cluster == i)
-                {
-                    x += final_centroids[j].x;
-                    y += final_centroids[j].y;
-                }
+                break;
             }
-            final_centroids[i].x = x / size;
-            final_centroids[i].y = y / size;
-        }
-
-        // int q;
-        // for (q = 0; q < k; q++)
-        // {
-        //     printf("%lf %lf %d\n", final_centroids[q].x, final_centroids[q].y, final_centroids[q].cluster); // making sure the received centroids look good
-        // }
-
-        // Step 7. Assign final clusters to all points
-        for (l = 0; l < k * nptsincluster; l++)
-        {
-            pts[l].cluster = assign_cluster(pts[l], final_centroids, k);
+            else
+            {
+                current_centroids = new_centroids;
+            }
         }
     }
-    // Think about adding barrier? for benchmarking?
 
     long int num_B = k * nptsincluster * sizeof(point);
-    // char[] what = argv[1];
 
     if ((rank == root) && 1)
     {
@@ -312,7 +250,6 @@ int main(int argc, char **argv)
         // Store data sheet with cluster assignments
         save_data_sheet(pts, k, nptsincluster);
         printf("Num. Processes: %d, Data size (B): %10li, Run Time (s): %15.9f\n", size, num_B, elapsed_time);
-        //printf("Nnodes: %s\n", argv[1]);
     }
 
     // Free memory?
