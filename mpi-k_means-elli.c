@@ -5,10 +5,11 @@
 #include <stddef.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <string.h>
 
 typedef struct point
 {
-    double x, y; // data points
+    double x[6]; // data points
     int cluster; // cluster association
 } point;
 
@@ -20,7 +21,7 @@ void save_data_sheet(point *pts, int k, int nptsincluster)
 
     for (i = 0; i < k * nptsincluster; i++)
     {
-        fprintf(fptr, "%lf,%lf,%d\n", pts[i].x, pts[i].y, pts[i].cluster);
+        fprintf(fptr, "%lf,%lf,%lf,%lf,%lf,%lf,%d\n", pts[i].x[0], pts[i].x[1], pts[i].x[2], pts[i].x[3], pts[i].x[4], pts[i].x[5], pts[i].cluster);
     }
     fclose(fptr);
 }
@@ -47,8 +48,12 @@ point *generate_data(int k, int nptsincluster)
             z2 = spread * i + sqrt(-2 * log2(u1)) * sin(2 * M_PI * u2);
             int n = i * nptsincluster + j;
 
-            pts[n].x = z1;
-            pts[n].y = z2;
+            pts[n].x[0] = z1;
+            pts[n].x[1] = z2;
+            pts[n].x[2] = z2;
+            pts[n].x[3] = z2;
+            pts[n].x[4] = z2;
+            pts[n].x[5] = z2;
         }
     }
     if (0)
@@ -79,29 +84,40 @@ point *calc_new_centroids(int k, int nptsincluster, point *pts)
     int i, j;
     point *new_centroids;
     new_centroids = calloc(k, sizeof(point));
-    float new_x, new_y;
+    double new_a, new_b, new_c, new_x, new_y, new_z;
 
     for (i = 0; i < k; i++)
     {
         point sum;
         int count = 0;
-        sum.x = sum.y = 0.0;
+        sum.x[0] = sum.x[1] = sum.x[2] = sum.x[3] = sum.x[4] = sum.x[5] = 0.0;
 
         for (j = 0; j < k * nptsincluster; j++)
         {
             if (pts[j].cluster == i)
             {
-                sum.x += pts[j].x;
-                sum.y += pts[j].y;
+                sum.x[0] += pts[j].x[0];
+                sum.x[1] += pts[j].x[1];
+                sum.x[2] += pts[j].x[2];
+                sum.x[3] += pts[j].x[3];
+                sum.x[4] += pts[j].x[4];
+                sum.x[5] += pts[j].x[5];
                 count += 1;
             }
         }
+        new_a = sum.x[0] / count;
+        new_b = sum.x[1] / count;
+        new_c = sum.x[2] / count;
+        new_x = sum.x[3] / count;
+        new_y = sum.x[4] / count;
+        new_z = sum.x[5] / count;
 
-        new_x = sum.x / count;
-        new_y = sum.y / count;
-
-        new_centroids[i].x = new_x;
-        new_centroids[i].y = new_y;
+        new_centroids[i].x[0] = new_a;
+        new_centroids[i].x[1] = new_b;
+        new_centroids[i].x[2] = new_c;
+        new_centroids[i].x[3] = new_x;
+        new_centroids[i].x[4] = new_y;
+        new_centroids[i].x[5] = new_z;
     }
     return new_centroids;
 }
@@ -110,12 +126,13 @@ int assign_cluster(point pt, point *current_centroids, int k)
 {
     int i;
     float distance;
-    float min_distance = 1000000; // XXX: Very hacky
+    float min_distance = 100000000; // XXX: Very hacky
     int cluster_assignment;
 
     for (i = 0; i < k; i++)
     {
-        distance = sqrt(pow(pt.x - current_centroids[i].x, 2) + pow(pt.y - current_centroids[i].y, 2));
+        distance = sqrt(pow(pt.x[0] - current_centroids[i].x[0], 2) + pow(pt.x[1] - current_centroids[i].x[1], 2) + pow(pt.x[2] - current_centroids[i].x[2], 2) +
+                        pow(pt.x[3] - current_centroids[i].x[3], 2) + pow(pt.x[4] - current_centroids[i].x[4], 2) + pow(pt.x[5] - current_centroids[i].x[5], 2));
         if (distance < min_distance) // XXX: what if there is equal distance between two different centroids?
         {
             min_distance = distance;
@@ -133,13 +150,13 @@ double compare_centroids(point *current_centroids, point *new_centroid, int k)
 
     for (i = 0; i < k; i++)
     {
-        diff = current_centroids[i].x - new_centroid[i].x;
-        if (diff != 0.0)
-            return diff;
-
-        diff = current_centroids[i].y - new_centroid[i].y;
-        if (diff != 0.0)
-            return diff;
+        int j;
+        for (j = 0; j <= 6; j++)
+        {
+            diff = current_centroids[i].x[j] - new_centroid[i].x[j];
+            if (diff != 0.0)
+                return diff;
+        }
     }
     return diff;
 }
@@ -178,15 +195,19 @@ int main(int argc, char **argv)
     sub_pts = calloc(elements_per_proc, sizeof(point));
 
     // Define own MPI Datatype for the struct
-    MPI_Datatype types[] = {MPI_DOUBLE, MPI_DOUBLE, MPI_INT};
+    MPI_Datatype types[] = {MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_INT};
     MPI_Datatype custom_type;
-    int array_of_blocklengths[] = {1, 1, 1};
+    int array_of_blocklengths[] = {1, 1, 1, 1, 1, 1};
 
-    MPI_Aint array_of_displacements[] = {offsetof(point, x),
-                                         offsetof(point, y),
+    MPI_Aint array_of_displacements[] = {offsetof(point, x[0]),
+                                         offsetof(point, x[1]),
+                                         offsetof(point, x[2]),
+                                         offsetof(point, x[3]),
+                                         offsetof(point, x[4]),
+                                         offsetof(point, x[5]),
                                          offsetof(point, cluster)};
 
-    MPI_Type_create_struct(3, array_of_blocklengths, array_of_displacements, types, &custom_type);
+    MPI_Type_create_struct(7, array_of_blocklengths, array_of_displacements, types, &custom_type);
     MPI_Type_commit(&custom_type);
 
     srand(1337);
