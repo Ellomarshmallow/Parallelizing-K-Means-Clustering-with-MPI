@@ -6,7 +6,7 @@ for nproc in "${array[@]}"; do
     nnodes=nproc # to see max resource utilization
     ncpus=1
     #dataset_size=10000
-    filename=benchmark-$nnodes-$ncpus-$nproc.sh
+    filename=benchmark-mpi-k_means-$nnodes-$ncpus-$nproc.sh
     echo "#!/bin/bash
 
 #PBS -l select=$nnodes:ncpus=$ncpus:mem=2gb 

@@ -17,7 +17,7 @@ void save_data_sheet(point *pts, int k, int nptsincluster)
 {
     int i;
     FILE *fptr = fopen("data.csv", "w");
-    fprintf(fptr, "%s,%s,%s\n", "x", "y", "cluster");
+    fprintf(fptr, "%s,%s,%s,%s,%s,%s,%s\n", "x1", "x2", "x3", "x4", "x5", "x6", "cluster");
 
     for (i = 0; i < k * nptsincluster; i++)
     {
@@ -124,7 +124,7 @@ point *initial_centroids(int k, int nptsincluster, point *pts)
 
     for (j = 0; j < k; j++)
     {
-        r = rand() % (k * nptsincluster); // XXX: Doesn't ensure exclusivity when generating the numbers
+        r = rand() % (k * nptsincluster);
         init_centroids[j] = pts[r];
     }
     return init_centroids;
@@ -177,14 +177,14 @@ int assign_cluster(point pt, point *current_centroids, int k)
 {
     int i;
     float distance;
-    float min_distance = 100000000; // XXX: Very hacky
+    float min_distance = 100000000;
     int cluster_assignment;
 
     for (i = 0; i < k; i++)
     {
         distance = sqrt(pow(pt.x[0] - current_centroids[i].x[0], 2) + pow(pt.x[1] - current_centroids[i].x[1], 2) + pow(pt.x[2] - current_centroids[i].x[2], 2) +
                         pow(pt.x[3] - current_centroids[i].x[3], 2) + pow(pt.x[4] - current_centroids[i].x[4], 2) + pow(pt.x[5] - current_centroids[i].x[5], 2));
-        if (distance < min_distance) // XXX: what if there is equal distance between two different centroids?
+        if (distance < min_distance)
         {
             min_distance = distance;
             cluster_assignment = i;
@@ -212,6 +212,22 @@ double compare_centroids(point *current_centroids, point *new_centroid, int k)
     return diff;
 }
 
+int get_file_len(const char *filename)
+{
+    int file_length;
+
+    if (strcmp(filename, "/home/eleonora.renz/hpc4ds-project/benchmarking/light/Credit_Data_Light.csv") == 0)
+    {
+        file_length = 895;
+    }
+    else
+    {
+        file_length = 8950;
+    }
+
+    return file_length;
+}
+
 int main(int argc, char **argv)
 {
 
@@ -225,18 +241,15 @@ int main(int argc, char **argv)
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    // XXX: Split variable declarations into for all processes and only root process?
-
     char *nnodes = argv[1];
     char *ncpus = argv[2];
-    // char* dataset_size = argv[1]; FIXME - needs to be added again in bash script
-    // int nptsincluster = (int)(uintptr_t)dataset_size; // currently will be multiplied by k
-    int nptsincluster = 447;
-    int k = 2;
+    const char *filename = "/home/eleonora.renz/hpc4ds-project/benchmarking/light/Credit_Data_Light.csv";
+    int file_length = get_file_len(filename);
+    int k = 5;
+    int nptsincluster = ceil(file_length / k);
     const int root = 0;
     int elements_per_proc = ceil((k * nptsincluster) / size);
     double start_time, stop_time, elapsed_time;
-    const char *filename = "/home/eleonora.renz/hpc4ds-project/Credit_Data_Light.csv";
 
     point *pts;
     point *init_centroids;
@@ -267,7 +280,6 @@ int main(int argc, char **argv)
     if (rank == 0) // Data needs to sit on root process to be scattered later on
     {
         // 0. Generate random 2d data for now
-        // pts = generate_data(k, nptsincluster); // XXX: think about writing + ready to file to benchmark with I/O if wanted
         pts = read_data(filename);
 
         // Benchmark with data in memory already

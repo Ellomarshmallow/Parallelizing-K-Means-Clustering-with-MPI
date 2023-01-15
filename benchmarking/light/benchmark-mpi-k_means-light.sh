@@ -6,7 +6,7 @@ for nproc in "${array[@]}"; do
     nnodes=1
     ncpus=2
     #dataset_size=100
-    filename=benchmark-light-$nnodes-$ncpus-$nproc.sh
+    filename=benchmark-mpi-k_means-light-$nnodes-$ncpus-$nproc.sh
     echo "#!/bin/bash
 
 #PBS -l select=$nnodes:ncpus=$ncpus:mem=2gb 
