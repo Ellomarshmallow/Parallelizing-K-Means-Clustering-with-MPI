@@ -243,7 +243,9 @@ int main(int argc, char **argv)
 
     char *nnodes = argv[1];
     char *ncpus = argv[2];
-    const char *filename = "/home/eleonora.renz/hpc4ds-project/benchmarking/light/Credit_Data_Light.csv";
+    char *filename = argv[3];
+    // const char *filename = "/home/eleonora.renz/hpc4ds-project/benchmarking/heavy/Credit_Data_Heavy.csv";
+    // const char *filename = "/home/eleonora.renz/hpc4ds-project/benchmarking/light/Credit_Data_Light.csv";
     int file_length = get_file_len(filename);
     int k = 5;
     int nptsincluster = ceil(file_length / k);
