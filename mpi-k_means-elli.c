@@ -63,6 +63,57 @@ point *generate_data(int k, int nptsincluster)
     return pts;
 }
 
+point *read_data(const char *filename)
+{
+    FILE *fp;
+    int MAX_LINE_LENGTH = 100;
+    char line[MAX_LINE_LENGTH];
+    struct point *pts = NULL;
+    int i = 0;
+    int lines_read = 0;
+    int data_size = 100;
+    int line_number = 0;
+
+    pts = (struct point *)malloc(data_size * sizeof(struct point));
+
+    fp = fopen(filename, "r");
+
+    if (fp == NULL)
+    {
+        printf("Error opening file\n");
+        MPI_Finalize();
+        exit(1);
+    }
+    while (fgets(line, MAX_LINE_LENGTH, fp) != NULL)
+    {
+        line_number++;
+        // skip the first line, as it contains the header
+        if (line_number == 1)
+        {
+            continue;
+        }
+
+        char *token = strtok(line, ",");
+        int j;
+        for (j = 0; j < 6; j++)
+        {
+            pts[i].x[j] = atof(token);
+            token = strtok(NULL, ",");
+        }
+        lines_read++;
+        i++;
+        if (lines_read == data_size)
+        {
+            data_size *= 2;
+            pts = realloc(pts, data_size * sizeof(struct point));
+        }
+    }
+
+    fclose(fp);
+
+    return pts;
+}
+
 point *initial_centroids(int k, int nptsincluster, point *pts)
 {
     int r;
@@ -180,11 +231,12 @@ int main(int argc, char **argv)
     char *ncpus = argv[2];
     // char* dataset_size = argv[1]; FIXME - needs to be added again in bash script
     // int nptsincluster = (int)(uintptr_t)dataset_size; // currently will be multiplied by k
-    int nptsincluster = 300;
-    int k = 3;
+    int nptsincluster = 447;
+    int k = 2;
     const int root = 0;
     int elements_per_proc = ceil((k * nptsincluster) / size);
     double start_time, stop_time, elapsed_time;
+    const char *filename = "/home/eleonora.renz/hpc4ds-project/Credit_Data_Light.csv";
 
     point *pts;
     point *init_centroids;
@@ -197,7 +249,7 @@ int main(int argc, char **argv)
     // Define own MPI Datatype for the struct
     MPI_Datatype types[] = {MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_INT};
     MPI_Datatype custom_type;
-    int array_of_blocklengths[] = {1, 1, 1, 1, 1, 1};
+    int array_of_blocklengths[] = {1, 1, 1, 1, 1, 1, 1};
 
     MPI_Aint array_of_displacements[] = {offsetof(point, x[0]),
                                          offsetof(point, x[1]),
@@ -215,7 +267,8 @@ int main(int argc, char **argv)
     if (rank == 0) // Data needs to sit on root process to be scattered later on
     {
         // 0. Generate random 2d data for now
-        pts = generate_data(k, nptsincluster); // XXX: think about writing + ready to file to benchmark with I/O if wanted
+        // pts = generate_data(k, nptsincluster); // XXX: think about writing + ready to file to benchmark with I/O if wanted
+        pts = read_data(filename);
 
         // Benchmark with data in memory already
         start_time = MPI_Wtime();
