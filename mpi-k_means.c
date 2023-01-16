@@ -216,7 +216,7 @@ int get_file_len(const char *filename)
 {
     int file_length;
 
-    if (strcmp(filename, "/home/eleonora.renz/hpc4ds-project/benchmarking/light/Credit_Data_Light.csv") == 0)
+    if (strcmp(filename, "/home/eleonora.renz/hpc4ds-project/benchmarking/k-means/light/Credit_Data_Light.csv") == 0)
     {
         file_length = 8950;
     }
@@ -244,8 +244,8 @@ int main(int argc, char **argv)
     char *nnodes = argv[1];
     char *ncpus = argv[2];
     char *filename = argv[3];
-    // const char *filename = "/home/eleonora.renz/hpc4ds-project/benchmarking/heavy/Credit_Data_Heavy.csv";
-    // const char *filename = "/home/eleonora.renz/hpc4ds-project/benchmarking/light/Credit_Data_Light.csv";
+    // const char *filename = "/home/eleonora.renz/hpc4ds-project/benchmarking/k-means/heavy/Credit_Data_Heavy.csv";
+    // const char *filename = "/home/eleonora.renz/hpc4ds-project/benchmarking/k-means/light/Credit_Data_Light.csv";
     int file_length = get_file_len(filename);
     int k = 5;
     int nptsincluster = ceil(file_length / k);
@@ -279,9 +279,9 @@ int main(int argc, char **argv)
 
     srand(1337);
 
-    if (rank == 0) // Data needs to sit on root process to be scattered later on
+    if (rank == 0) // Data sits on root process to be scattered later on
     {
-        // 0. Generate random 2d data for now
+        // 0. Read data into struct
         pts = read_data(filename);
 
         // Benchmark with data in memory already
@@ -292,7 +292,7 @@ int main(int argc, char **argv)
         current_centroids = init_centroids;
     }
 
-    // Step 2. Send data (split by n nodes) and inital k centroids to the different nodes from node 0
+    // Step 2. Send data (split by n processes) and inital k centroids to the different nodes from node 0
     MPI_Scatter(pts, elements_per_proc, custom_type, sub_pts, elements_per_proc, custom_type, root, MPI_COMM_WORLD);
     MPI_Bcast(current_centroids, k, custom_type, root, MPI_COMM_WORLD);
 
@@ -334,6 +334,7 @@ int main(int argc, char **argv)
             current_centroids = new_centroids;
         }
 
+        // Send new centroids from root to all processes to continue loop
         MPI_Bcast(current_centroids, k, custom_type, root, MPI_COMM_WORLD);
     }
 
@@ -346,6 +347,7 @@ int main(int argc, char **argv)
 
         // Store data sheet with cluster assignments
         save_data_sheet(pts, k, nptsincluster);
+        // Print results for benchmarking
         printf("%s,%s,%d,%li,%f\n", nnodes, ncpus, size, num_B, elapsed_time);
     }
 

@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-array=(1 2 4 8 12 16 20 24 28 30)
+array=(1 2 3 4 5 6 7 8 9 10)
 for nproc in "${array[@]}"; do
-    nnodes=1
-    ncpus=$nproc # to see max resource utilization
-    input_file="/home/eleonora.renz/hpc4ds-project/benchmarking/heavy/Credit_Data_Heavy.csv"
-    filename=benchmark-mpi-k_means-cpu_increase-$nnodes-$ncpus-$nproc.sh
+    nnodes=3
+    ncpus=3
+    input_file="/home/eleonora.renz/hpc4ds-project/benchmarking/k-means/heavy/Credit_Data_Heavy.csv"
+    filename=benchmark-mpi-k_means-heavy-$nnodes-$ncpus-$nproc.sh
     echo "#!/bin/bash
 
 #PBS -l select=$nnodes:ncpus=$ncpus:mem=2gb 
@@ -21,9 +21,9 @@ mpirun.actual -n $nproc ./hpc4ds-project/mpi-k_means $nnodes $ncpus $input_file"
 
     chmod u+x $filename
 
-    if (($nproc % 8 == 0)); then # --> queue limit is 30 per user
+    if (($nproc % 3 == 0)); then # --> queue limit is 30 per user
         echo "Sleeping to not exceed queue limit"
-        sleep 10
+        sleep 30
     fi
 
     for runs in {1..5}; do # to average the values later on
