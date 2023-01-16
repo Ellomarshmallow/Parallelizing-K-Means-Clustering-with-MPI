@@ -3,7 +3,7 @@ set -e
 
 array=(1 2 4 8 12 16 20 24 28 30)
 for nproc in "${array[@]}"; do
-    nnodes=$nproc # to see max resource utilization
+    nnodes=$nproc
     ncpus=1
     input_file="/home/eleonora.renz/hpc4ds-project/benchmarking/heavy/Credit_Data_Heavy.csv"
     filename=benchmark-mpi-k_means-node_increase-$nnodes-$ncpus-$nproc.sh
@@ -26,7 +26,7 @@ mpirun.actual -n $nproc ./hpc4ds-project/mpi-k_means $nnodes $ncpus $input_file"
         sleep 10
     fi
 
-    for runs in {1..5}; do # to average the values later on --> queue limit is 30 per user
+    for runs in {1..5}; do # to average the values later on 
         qsub $filename
     done
 done

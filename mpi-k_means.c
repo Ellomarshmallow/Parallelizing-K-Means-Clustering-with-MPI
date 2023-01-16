@@ -218,11 +218,11 @@ int get_file_len(const char *filename)
 
     if (strcmp(filename, "/home/eleonora.renz/hpc4ds-project/benchmarking/light/Credit_Data_Light.csv") == 0)
     {
-        file_length = 895;
+        file_length = 8950;
     }
     else
     {
-        file_length = 5200;
+        file_length = 17950;
     }
 
     return file_length;

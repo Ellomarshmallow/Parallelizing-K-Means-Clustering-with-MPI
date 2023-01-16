@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-array=(1 2 3 4 5 6 7 8 9 10 11)
+array=(1 2 3 4 5 6 7 8 9 10)
 for nproc in "${array[@]}"; do
     nnodes=3
     ncpus=3
@@ -21,7 +21,7 @@ mpirun.actual -n $nproc ./hpc4ds-project/mpi-k_means $nnodes $ncpus $input_file"
 
     chmod u+x $filename
 
-    if (($nproc % 5 == 0)); then # --> queue limit is 30 per user
+    if (($nproc % 3 == 0)); then # --> queue limit is 30 per user
         echo "Sleeping to not exceed queue limit"
         sleep 10 
     fi
