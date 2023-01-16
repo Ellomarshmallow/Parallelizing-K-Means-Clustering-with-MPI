@@ -222,7 +222,7 @@ int get_file_len(const char *filename)
     }
     else
     {
-        file_length = 8950;
+        file_length = 5200;
     }
 
     return file_length;
